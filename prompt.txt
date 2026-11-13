@@ -1,0 +1,65 @@
+================================================================================
+  AI USAGE AND PROMPT LOG
+  Project: Bluesky Live Trending Content Recommender
+  Module:  Data Management - Final Project (Winter 2026)
+  Author:  Sabhareesh Balaji Patel
+================================================================================
+
+Tool:    Claude (Anthropic), via the Claude app
+Period:  6 - 13 November 2026
+Use:     planning, explanation of concepts, code generation and documentation.
+         I ran, tested and measured everything on my own machine.
+
+MAIN PROMPTS USED TO BUILD THE PROJECT
+--------------------------------------
+
+1. Requirements and project idea
+   [Lecture PDF and transcript of the professor's instructions attached]
+   "Based on the project instructions in the attached PDF and transcript,
+   suggest what I should build and how to approach it."
+
+2. Choosing the use case
+   "Suggest project ideas based on the business objectives the professor
+   listed (recommendation, fraud/anomaly detection, CDC). I choose the live
+   trending content recommender using the Bluesky Jetstream live feed."
+
+3. Project plan
+   "Give me the complete workflow for this project, broken down into phases and
+   steps, from setup to submission."
+
+4. Environment setup and data ingestion
+   "Guide me step by step to set up the environment on a Mac (Docker, Python,
+   Kafka) and to build a producer that streams live Bluesky posts into Kafka."
+
+5. Stream processing and dashboard
+   "Build the Spark Structured Streaming job that computes trending topics,
+   recommendations and system metrics, and a live dashboard that shows them,
+   including reliability features such as reconnect, cursor replay and failover."
+
+6. Meaningful trends
+   "Improve the trending logic so that the trends are meaningful topics and
+   cannot be faked by a single account posting many times."
+
+7. Additional objectives from the professor's review
+   "Implement these three objectives:
+    1. Track one to three meaningful cumulative business metrics that reveal
+       trends, for example average posts per hour or average likes per post.
+    2. Recover from brief outages without losing data: simulate the dashboard
+       going down for 2 to 10 seconds while data keeps arriving, then catch up
+       on the held data and resume the live stream.
+    3. Process duplicate records exactly once (idempotency): if the source sends
+       the same record several times, it must not be counted or stored more
+       than once."
+
+8. Verification
+   "Create a way to verify and demonstrate that a post delivered multiple times
+   is processed only once."
+
+9. Documentation
+   "Create the README file for the project, using my measured results."
+
+Note: in addition to these prompts, I used follow-up prompts to fix errors that
+came up while running the project on my machine (for example SSL certificates,
+Python environment and Kafka connection issues).
+
+================================================================================

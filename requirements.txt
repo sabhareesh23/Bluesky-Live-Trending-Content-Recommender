@@ -1,0 +1,5 @@
+kafka-python>=2.0.3
+websocket-client>=1.7
+certifi>=2024.2.2
+streamlit>=1.40
+pandas>=2.0

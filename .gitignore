@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+checkpoints/
+*.log
+.DS_Store
+producer/cursor.txt
+logs/
+producer/seen_ids.json
+producer/seen_ids.json.tmp
+dashboard/.heartbeat

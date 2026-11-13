@@ -1,0 +1,108 @@
+# Bluesky Live Trending Content Recommender
+# Phase 1: Kafka (message broker) + topic setup + Kafka UI (web viewer)
+# Spark and the dashboard are added in later phases.
+
+services:
+
+  # 1) Kafka broker - runs in KRaft mode (no Zookeeper needed)
+  kafka:
+    image: apache/kafka:3.8.0
+    container_name: kafka
+    ports:
+      - "9092:9092"            # for programs running on your laptop
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qk"
+      # Two "doors": one for containers (kafka:29092), one for your laptop (localhost:9092)
+      KAFKA_LISTENERS: PLAINTEXT://:29092,PLAINTEXT_HOST://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      # Single broker, so replication factor must be 1
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_NUM_PARTITIONS: 3
+      KAFKA_LOG_RETENTION_HOURS: 24      # keep data for 1 day
+    volumes:
+      - kafka_data:/var/lib/kafka/data   # data survives container restarts (reliability)
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 > /dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+    restart: unless-stopped
+
+  # 2) One-time job: creates our topics, then exits
+  kafka-init:
+    image: apache/kafka:3.8.0
+    container_name: kafka-init
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        for topic in raw_posts raw_likes enriched_posts trending recommendations metrics dead_letter; do
+          /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 \
+            --create --if-not-exists --topic $$topic \
+            --partitions 3 --replication-factor 1
+        done
+        # hourly_metrics is COMPACTED: Kafka keeps only the latest message per key (= per hour)
+        # and keeps it forever -> cumulative business metrics survive restarts
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 \
+          --create --if-not-exists --topic hourly_metrics \
+          --partitions 3 --replication-factor 1 \
+          --config cleanup.policy=compact --config retention.ms=-1
+        echo "Topics ready:"
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --list
+    restart: "no"
+
+  # 3) Kafka UI - see topics and messages in your browser at http://localhost:8080
+  kafka-ui:
+    image: kafbat/kafka-ui:latest
+    container_name: kafka-ui
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+    restart: unless-stopped
+
+  # 4) Spark - processes the stream (Phase 3)
+  #    Runs in "local mode": one container, uses all CPU cores of the container.
+  spark:
+    image: apache/spark:3.5.3-scala2.12-java17-python3-ubuntu
+    container_name: spark
+    user: root                          # avoids file-permission problems with the volumes
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      KAFKA_SERVER: kafka:29092         # containers talk to Kafka through this "door"
+      BUSINESS_WINDOW: ${BUSINESS_WINDOW:-1 hour}   # e.g. BUSINESS_WINDOW="5 minutes" for a quick demo
+    ports:
+      - "4040:4040"                     # Spark UI -> http://localhost:4040
+    volumes:
+      - ./spark:/opt/app                # your Spark code (edit on your Mac, runs in the container)
+      - spark_ivy:/tmp/.ivy2            # cache for the Kafka connector (downloaded only once)
+      - spark_checkpoints:/opt/checkpoints
+    command: >
+      /opt/spark/bin/spark-submit
+      --master local[*]
+      --conf spark.jars.ivy=/tmp/.ivy2
+      --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.3
+      /opt/app/${SPARK_JOB:-trending_job.py}
+    restart: unless-stopped
+
+volumes:
+  kafka_data:
+  spark_ivy:
+  spark_checkpoints:
