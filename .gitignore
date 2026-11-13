@@ -11,3 +11,4 @@ logs/
 producer/seen_ids.json
 producer/seen_ids.json.tmp
 dashboard/.heartbeat
+producer/seen_ids*.json
